@@ -241,12 +241,13 @@
             </div>
           </section>
 
-          <!-- Leituras complementares: Classificação + Ministério + Ano -->
+          <!-- Leituras complementares: Classificação + Ministério lado a lado, Ano abaixo em largura total -->
           <section class="panel">
             <div class="panel-head">
               <h2>Leituras complementares</h2>
             </div>
-            <div class="chart-grid chart-grid-analytical">
+
+            <div class="chart-grid chart-grid-2col">
               <article class="chart-card">
                 <div class="chart-title">Classificação</div>
                 <div class="plot-shell scroll-y">
@@ -260,13 +261,14 @@
                   <div id="plotMinisterio" class="plot"></div>
                 </div>
               </article>
-              <article class="chart-card">
-                <div class="chart-title">Ano de previsão de conclusão</div>
-                <div class="plot-shell">
-                  <div id="plotAno" class="plot"></div>
-                </div>
-              </article>
             </div>
+
+            <article class="chart-card" style="margin-top:14px">
+              <div class="chart-title">Ano de previsão de conclusão</div>
+              <div class="plot-shell">
+                <div id="plotAno" class="plot ano-plot"></div>
+              </div>
+            </article>
           </section>
 
         </div><!-- /panel-perfil -->
