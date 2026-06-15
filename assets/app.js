@@ -401,16 +401,31 @@ function renderPieChart({ key, rows, element, colors }) {
   const summary = summarizeBy(rows, key).sort((a,b) => a.valor_total_rs - b.valor_total_rs);
   if (!summary.length) return renderEmptyPlot(element, "Sem dados para este recorte.");
   const total = sum(summary.map(d => d.valor_total_rs));
-  const trace = { type:"pie", labels:summary.map(d=>d.categoria_raw), values:summary.map(d=>d.valor_total_rs),
-    textinfo:"label+percent", textposition:"inside", sort:false, hole:0.34,
+  const trace = {
+    type:"pie", labels:summary.map(d=>d.categoria_raw), values:summary.map(d=>d.valor_total_rs),
+    textinfo:"percent",      // só % dentro das fatias — rótulos completos ficam na legenda
+    textposition:"auto",     // Plotly coloca dentro se couber, fora se não couber
+    textfont:{size:11},
+    sort:false, hole:0.34,
     marker:{colors, line:{color:"#fff",width:2}},
-    customdata:summary.map(d=>[fmtMoney(d.valor_total_rs),fmtPct(d.execucao_media),d.qtd_empreendimentos.toLocaleString("pt-BR"),d.qtd_municipios.toLocaleString("pt-BR"),pctValue(d.valor_total_rs,total)]),
-    hovertemplate:"<b>%{label}</b><br>Valor: %{customdata[0]}<br>Participação: %{customdata[4]}<br>Execução média: %{customdata[1]}<br>Empreendimentos: %{customdata[2]}<br>Municípios: %{customdata[3]}<extra></extra>"
+    // customdata como OBJETO com chaves nomeadas — indexação [N] não funciona em pie charts Plotly
+    customdata:summary.map(d=>({
+      valor: fmtMoney(d.valor_total_rs),
+      exec:  fmtPct(d.execucao_media),
+      emp:   d.qtd_empreendimentos.toLocaleString("pt-BR"),
+      mun:   d.qtd_municipios.toLocaleString("pt-BR"),
+      pct:   pctValue(d.valor_total_rs,total)
+    })),
+    hovertemplate:"<b>%{label}</b><br>Valor: %{customdata.valor}<br>Participação: %{customdata.pct}<br>Execução média: %{customdata.exec}<br>Empreendimentos: %{customdata.emp}<br>Municípios: %{customdata.mun}<extra></extra>"
   };
-  const layout = baseLayout({height:420, margin:{l:10,r:10,t:10,b:10}, showlegend:true, legend:{orientation:"v",x:1.02,xanchor:"left",y:0.5,font:{size:11}}});
+  const layout = baseLayout({height:420, margin:{l:10,r:10,t:10,b:10}, showlegend:true,
+    legend:{orientation:"v", x:1.02, xanchor:"left", y:0.5, font:{size:11}}});
   if (typeof element.removeAllListeners === "function") element.removeAllListeners("plotly_click");
   Plotly.react(element, [trace], layout, plotConfig()).then(() =>
-    element.on("plotly_click", ev => { const label=ev.points?.[0]?.label; if(!label) return; APP.filters[key]=APP.filters[key]===label?null:label; renderAll(); })
+    element.on("plotly_click", ev => {
+      const label=ev.points?.[0]?.label; if(!label) return;
+      APP.filters[key]=APP.filters[key]===label?null:label; renderAll();
+    })
   );
 }
 
@@ -497,22 +512,35 @@ function renderYearChart(rows) {
       opacity: vals.map(v => Math.round((0.38 + 0.62 * (v / maxVal)) * 100) / 100),
       line:{color:"rgba(255,255,255,0.9)", width:1.2}
     },
+    // Rótulo de valor acima de cada barra — legível com largura total
     text: vals.map(shortMoney),
     textposition: "outside",
-    textangle: -45,
+    textangle: 0,
     textfont: {size: 10, color: "#56657a"},
     cliponaxis: false,
-    customdata:summary.map(d=>[fmtMoney(d.valor_total_rs),fmtPct(d.execucao_media),d.qtd_empreendimentos.toLocaleString("pt-BR"),d.qtd_municipios.toLocaleString("pt-BR")]),
-    hovertemplate:"<b>Ano %{x}</b><br>Valor: %{customdata[0]}<br>Execução média: %{customdata[1]}<br>Empreendimentos: %{customdata[2]}<br>Municípios: %{customdata[3]}<extra></extra>"
+    customdata:summary.map(d=>({
+      valor: fmtMoney(d.valor_total_rs),
+      exec:  fmtPct(d.execucao_media),
+      emp:   d.qtd_empreendimentos.toLocaleString("pt-BR"),
+      mun:   d.qtd_municipios.toLocaleString("pt-BR")
+    })),
+    hovertemplate:"<b>Ano %{x}</b><br>Valor: %{customdata.valor}<br>Execução média: %{customdata.exec}<br>Empreendimentos: %{customdata.emp}<br>Municípios: %{customdata.mun}<extra></extra>"
   };
-  const layout = baseLayout({height:400, margin:{l:72,r:20,t:48,b:60}});
-  layout.xaxis = {title:{text:"Ano de previsão de conclusão", standoff:10}, type:"category", automargin:true, tickfont:{size:11}};
-  layout.yaxis = {tickmode:"array", ...buildCurrencyTicks(vals), gridcolor:"rgba(15,76,129,0.08)", automargin:true, tickfont:{size:11}};
+  const layout = baseLayout({height:420, margin:{l:72,r:20,t:52,b:64}});
+  layout.xaxis = {
+    title:{text:"Ano de previsão de conclusão", standoff:12},
+    type:"category", tickangle:-30, automargin:true, tickfont:{size:11}
+  };
+  layout.yaxis = {
+    tickmode:"array", ...buildCurrencyTicks(vals),
+    gridcolor:"rgba(15,76,129,0.08)", automargin:true, tickfont:{size:11}
+  };
   if (typeof el.removeAllListeners === "function") el.removeAllListeners("plotly_click");
   Plotly.react(el, [trace], layout, plotConfig()).then(() =>
     el.on("plotly_click", ev => {
       const label=ev.points?.[0]?.x; if(!label) return;
-      APP.filters.ano_prev_conclusao = APP.filters.ano_prev_conclusao===String(label)?null:String(label); renderAll();
+      APP.filters.ano_prev_conclusao = APP.filters.ano_prev_conclusao===String(label)?null:String(label);
+      renderAll();
     })
   );
 }
