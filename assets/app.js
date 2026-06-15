@@ -415,23 +415,62 @@ function renderPieChart({ key, rows, element, colors }) {
 }
 
 function renderBarChart({ key, rows, element, color, sort="asc", clearChildren=[], uniqueField=null, labeler=null, showLink=false }) {
-  const summary = summarizeBy(rows, key, uniqueField, labeler).sort((a,b) => sort==="asc" ? a.valor_total_rs-b.valor_total_rs : b.valor_total_rs-a.valor_total_rs);
+  const summary = summarizeBy(rows, key, uniqueField, labeler)
+    .sort((a,b) => sort==="asc" ? a.valor_total_rs-b.valor_total_rs : b.valor_total_rs-a.valor_total_rs);
   if (!summary.length) return renderEmptyPlot(element, "Sem dados para este recorte.");
-  const cats  = summary.map(d => trimLabel(d.categoria, key==="empreendimento"?72:42));
+
+  const maxLabelChars = key === "empreendimento" ? 72 : 36;
+  const cats  = summary.map(d => trimLabel(d.categoria, maxLabelChars));
   const vals  = summary.map(d => d.valor_total_rs);
   const custom= summary.map(d => [d.categoria_raw, fmtMoney(d.valor_total_rs), fmtPct(d.execucao_media),
     d.qtd_empreendimentos.toLocaleString("pt-BR"), d.qtd_municipios.toLocaleString("pt-BR"),
     d.registros.toLocaleString("pt-BR"), d.link_ref||""]);
+
+  // Margem esquerda dinâmica: proporcional ao rótulo mais longo real
+  const longestCat = Math.max(...cats.map(c => c.length), 4);
+  const lMargin = key === "empreendimento" ? 420
+    : Math.min(Math.max(Math.ceil(longestCat * 6.5 + 18), 80), 260);
+
+  // Gradiente de opacidade: barras maiores ficam mais sólidas (0.42 → 1.0)
+  const maxVal = Math.max(...vals, 1);
+  const opacities = vals.map(v => Math.round((0.42 + 0.58 * (v / maxVal)) * 100) / 100);
+
   const linkLine = showLink ? "<br>%{customdata[6]}<extra></extra>" : "<extra></extra>";
+
   const trace = {
     type:"bar", orientation:"h", x:vals, y:cats,
-    marker:{color, line:{color:"rgba(255,255,255,0.85)",width:1.1}},
-    customdata:custom,
+    marker:{
+      color,
+      opacity: opacities,
+      line:{color:"rgba(255,255,255,0.9)", width:1.2}
+    },
+    // Valor curto exibido fora da barra — elimina necessidade de hover para ler
+    text: vals.map(shortMoney),
+    textposition: "outside",
+    textfont: {size: 10.5, color: "#56657a"},
+    cliponaxis: false,
+    customdata: custom,
     hovertemplate:"<b>%{customdata[0]}</b><br>Valor: %{customdata[1]}<br>Execução média: %{customdata[2]}<br>Empreendimentos: %{customdata[3]}<br>Municípios: %{customdata[4]}<br>Registros: %{customdata[5]}" + linkLine
   };
-  const layout = baseLayout({height:Math.max(360, summary.length*26+120), margin:{l:key==="empreendimento"?420:250,r:26,t:18,b:56}});
-  layout.xaxis = {title:{text:"Valor total (R$)",standoff:16}, tickmode:"array", ...buildCurrencyTicks(vals), gridcolor:"rgba(15,76,129,0.09)", zerolinecolor:"rgba(15,76,129,0.15)", automargin:true, tickfont:{size:11}};
-  layout.yaxis = {automargin:true, autorange:"reversed", categoryorder:"array", categoryarray:cats, tickfont:{size:11}};
+
+  // Altura por barra: 36px (empreendimento 28px pois pode ter muitos itens)
+  const barH = key === "empreendimento" ? 28 : 36;
+  const layout = baseLayout({
+    height: Math.max(360, summary.length * barH + 110),
+    margin: {l: lMargin, r: 96, t: 14, b: 52}   // r: 96 para os rótulos externos
+  });
+  layout.xaxis = {
+    title: {text:"Valor total (R$)", standoff:14},
+    tickmode:"array", ...buildCurrencyTicks(vals),
+    gridcolor:"rgba(15,76,129,0.08)", zerolinecolor:"rgba(15,76,129,0.18)",
+    automargin: true, tickfont:{size:11}
+  };
+  layout.yaxis = {
+    automargin: true, autorange:"reversed",
+    categoryorder:"array", categoryarray:cats,
+    tickfont:{size: key==="empreendimento" ? 10 : 12}
+  };
+
   if (typeof element.removeAllListeners === "function") element.removeAllListeners("plotly_click");
   Plotly.react(element, [trace], layout, plotConfig()).then(() => {
     element.on("plotly_click", ev => {
@@ -448,14 +487,27 @@ function renderYearChart(rows) {
   const summary = summarizeBy(rows,"ano_prev_conclusao").sort((a,b)=>Number(a.categoria_raw)-Number(b.categoria_raw));
   if (!summary.length) return renderEmptyPlot(el, "Sem dados para este recorte.");
   const vals = summary.map(d => d.valor_total_rs);
-  const trace = { type:"bar", x:summary.map(d=>d.categoria_raw), y:vals,
-    marker:{color:"#7b8aa0", line:{color:"rgba(255,255,255,0.85)",width:1.1}},
+  const maxVal = Math.max(...vals, 1);
+  const trace = {
+    type:"bar",
+    x: summary.map(d => d.categoria_raw),
+    y: vals,
+    marker:{
+      color: "#0f4c81",
+      opacity: vals.map(v => Math.round((0.38 + 0.62 * (v / maxVal)) * 100) / 100),
+      line:{color:"rgba(255,255,255,0.9)", width:1.2}
+    },
+    text: vals.map(shortMoney),
+    textposition: "outside",
+    textangle: -45,
+    textfont: {size: 10, color: "#56657a"},
+    cliponaxis: false,
     customdata:summary.map(d=>[fmtMoney(d.valor_total_rs),fmtPct(d.execucao_media),d.qtd_empreendimentos.toLocaleString("pt-BR"),d.qtd_municipios.toLocaleString("pt-BR")]),
     hovertemplate:"<b>Ano %{x}</b><br>Valor: %{customdata[0]}<br>Execução média: %{customdata[1]}<br>Empreendimentos: %{customdata[2]}<br>Municípios: %{customdata[3]}<extra></extra>"
   };
-  const layout = baseLayout({height:360, margin:{l:70,r:20,t:18,b:54}});
-  layout.xaxis = {title:"Ano de previsão de conclusão", type:"category", automargin:true};
-  layout.yaxis = {title:"Valor total (R$)", tickmode:"array", ...buildCurrencyTicks(vals), gridcolor:"rgba(15,76,129,0.09)"};
+  const layout = baseLayout({height:400, margin:{l:72,r:20,t:48,b:60}});
+  layout.xaxis = {title:{text:"Ano de previsão de conclusão", standoff:10}, type:"category", automargin:true, tickfont:{size:11}};
+  layout.yaxis = {tickmode:"array", ...buildCurrencyTicks(vals), gridcolor:"rgba(15,76,129,0.08)", automargin:true, tickfont:{size:11}};
   if (typeof el.removeAllListeners === "function") el.removeAllListeners("plotly_click");
   Plotly.react(el, [trace], layout, plotConfig()).then(() =>
     el.on("plotly_click", ev => {
