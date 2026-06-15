@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Novo PAC (2023–2030) – Rio Grande do Sul</title>
+  <meta name="description" content="Painel interativo do Novo PAC (2023–2030) para o Rio Grande do Sul." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css" />
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+  <div class="site-shell">
+
+    <!-- ═══ HERO ══════════════════════════════════════════════════════════════ -->
+    <header class="hero">
+      <div class="hero-media">
+        <img src="assets/banner_pac.jpeg" alt="Banner institucional do Novo PAC"
+             onerror="this.parentElement.style.display='none'" />
+      </div>
+      <div class="hero-body">
+        <div class="hero-copy">
+          <div class="eyebrow">Novo PAC (2023–2030)</div>
+          <h1>Rio Grande do Sul</h1>
+          <p>
+            Casa Civil – Governo Federal – Brasil<br>
+            Atualização da base: <span id="heroAtualizacao">março de 2026</span>
+          </p>
+        </div>
+        <div class="hero-actions">
+          <a class="btn btn-primary"
+             href="https://www.gov.br/casacivil/pt-br/novopac/transparencia"
+             target="_blank" rel="noopener noreferrer">Fonte oficial</a>
+          <button id="btnPdf" class="btn btn-secondary">Baixar relatório em PDF</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ═══ LAYOUT PRINCIPAL ══════════════════════════════════════════════════ -->
+    <main class="page-grid">
+
+      <!-- ── SIDEBAR ─────────────────────────────────────────────────────── -->
+      <aside class="sidebar">
+        <section class="panel sticky-panel">
+          <div class="panel-head">
+            <h2>Filtros</h2>
+            <button id="btnReset" class="btn btn-muted">Limpar filtros</button>
+          </div>
+
+          <div class="field-block">
+            <label class="field-label" for="municipioSearch">Município</label>
+            <input id="municipioSearch" class="field-input" type="text"
+                   placeholder="Digite para localizar" autocomplete="off" />
+            <select id="municipioSelect" class="field-select" size="12"
+                    aria-label="Selecionar município"></select>
+            <div class="field-help">Filtro principal do painel.</div>
+          </div>
+
+          <div class="field-block">
+            <div class="field-label">Filtros ativos</div>
+            <div id="activeFilters" class="chip-wrap empty-state small-empty">
+              Nenhum filtro ativo além do recorte geral.
+            </div>
+          </div>
+
+          <div class="field-block info-box">
+            <div class="info-title">Como navegar</div>
+            <ul>
+              <li>Selecione um município ou clique nos gráficos para filtros cruzados.</li>
+              <li><b>Hierarquia:</b> drill-down Eixo → Subeixo → Modalidade → Empreendimento.</li>
+              <li><b>Perfil:</b> heatmap Eixo × Estágio, pizzas e leituras complementares.</li>
+              <li><b>Relações:</b> fluxo de recursos (Sankey) e dispersão de municípios.</li>
+              <li>Todos os gráficos são interativos e cruzados entre si.</li>
+            </ul>
+          </div>
+        </section>
+      </aside>
+
+      <!-- ── CONTEÚDO PRINCIPAL ──────────────────────────────────────────── -->
+      <section class="content">
+
+        <!-- KPIs — sempre visíveis acima das abas -->
+        <section class="panel kpi-panel">
+          <div class="panel-head">
+            <h2>Visão geral do recorte</h2>
+            <div class="status-inline" id="statusLine">Carregando dados…</div>
+          </div>
+          <div class="kpi-grid">
+            <article class="kpi-card highlight">
+              <div class="kpi-label">Valor total</div>
+              <div id="kpiValor" class="kpi-value">R$ 0,00</div>
+              <div class="kpi-note">Soma da estimativa de valor dos empreendimentos.</div>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-label">Execução física média</div>
+              <div id="kpiExec" class="kpi-value">0,00%</div>
+              <div class="kpi-note">Média simples da execução física no recorte.</div>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-label">Empreendimentos</div>
+              <div id="kpiEmp" class="kpi-value">0</div>
+              <div class="kpi-note">Quantidade única de empreendimentos.</div>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-label">Municípios</div>
+              <div id="kpiMun" class="kpi-value">0</div>
+              <div class="kpi-note">Quantidade única de municípios.</div>
+            </article>
+          </div>
+          <div class="hier-summary" id="hierSummary"></div>
+        </section>
+
+        <!-- NAVEGAÇÃO EM ABAS -->
+        <nav class="tab-nav" aria-label="Seções do painel">
+          <button class="tab-btn" data-tab="hierarquia">
+            <svg class="tab-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <rect x="2" y="2" width="7" height="7" rx="1.5"/>
+              <rect x="11" y="2" width="7" height="7" rx="1.5"/>
+              <rect x="2" y="11" width="7" height="7" rx="1.5"/>
+              <rect x="11" y="11" width="7" height="7" rx="1.5"/>
+            </svg>
+            Hierarquia
+          </button>
+          <button class="tab-btn" data-tab="perfil">
+            <svg class="tab-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <circle cx="10" cy="10" r="7.5"/>
+              <path d="M10 10 L10 2.5"/>
+              <path d="M10 10 L15.3 13"/>
+              <path d="M10 10 L4.7 13"/>
+            </svg>
+            Perfil do Recorte
+          </button>
+          <button class="tab-btn" data-tab="relacoes">
+            <svg class="tab-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <circle cx="4" cy="10" r="2.2"/>
+              <circle cx="16" cy="5" r="2.2"/>
+              <circle cx="16" cy="15" r="2.2"/>
+              <line x1="6" y1="9" x2="14" y2="5.8"/>
+              <line x1="6" y1="11" x2="14" y2="14.2"/>
+            </svg>
+            Relações
+          </button>
+        </nav>
+
+        <!-- ══════════════════════════════════════════════════════════════════
+             ABA 1 — HIERARQUIA (treemap drill-down)
+        ═══════════════════════════════════════════════════════════════════ -->
+        <div id="panel-hierarquia" class="tab-panel">
+
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Estrutura hierárquica</h2>
+                <div class="table-subhead">
+                  Clique num bloco para fazer drill-down. Eixo → Subeixo → Modalidade.
+                </div>
+              </div>
+              <div id="hierBreadcrumb" class="breadcrumb">Todos</div>
+            </div>
+            <article class="chart-card">
+              <div class="plot-shell">
+                <div id="plotTreemap" class="plot treemap-plot"></div>
+              </div>
+            </article>
+          </section>
+
+          <!-- Painel de empreendimentos — aparece só quando há filtro hierárquico -->
+          <section class="panel" id="emp-panel" hidden>
+            <div class="panel-head">
+              <h2>Empreendimentos no recorte</h2>
+              <div class="table-subhead">
+                Ordenado pelo maior valor. Clique num item com link para ver o botão <b>Ver detalhes ↗</b>.
+              </div>
+            </div>
+            <article class="chart-card">
+              <div class="plot-shell scroll-y">
+                <div id="plotEmpreendimento" class="plot"></div>
+              </div>
+            </article>
+          </section>
+
+        </div><!-- /panel-hierarquia -->
+
+        <!-- ══════════════════════════════════════════════════════════════════
+             ABA 2 — PERFIL DO RECORTE (heatmap + pizzas + leituras)
+        ═══════════════════════════════════════════════════════════════════ -->
+        <div id="panel-perfil" class="tab-panel" hidden>
+
+          <!-- Heatmap Eixo × Estágio -->
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Eixo × Estágio</h2>
+                <div class="table-subhead">
+                  Onde estão concentrados os projetos? Clique numa célula para filtrar eixo e estágio simultaneamente.
+                </div>
+              </div>
+              <button id="btnHeatmapToggle" class="btn btn-secondary">Ver: Empreendimentos</button>
+            </div>
+            <article class="chart-card">
+              <div class="plot-shell">
+                <div id="plotHeatmap" class="plot heatmap-plot"></div>
+              </div>
+            </article>
+          </section>
+
+          <!-- 4 gráficos de pizza -->
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Perfil do recorte</h2>
+            </div>
+            <div class="chart-grid chart-grid-pies">
+              <article class="chart-card">
+                <div class="chart-title">Inclusão no Novo PAC</div>
+                <div class="plot-shell">
+                  <div id="plotInclusao" class="plot pie-plot"></div>
+                </div>
+              </article>
+              <article class="chart-card">
+                <div class="chart-title">Tipo de Executor</div>
+                <div class="plot-shell">
+                  <div id="plotExecutor" class="plot pie-plot"></div>
+                </div>
+              </article>
+              <article class="chart-card">
+                <div class="chart-title">Estágio</div>
+                <div class="plot-shell">
+                  <div id="plotEstagio" class="plot pie-plot"></div>
+                </div>
+              </article>
+              <article class="chart-card">
+                <div class="chart-title">Fontes de financiamento</div>
+                <div class="plot-shell">
+                  <div id="plotFontes" class="plot pie-plot"></div>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <!-- Leituras complementares: Classificação + Ministério + Ano -->
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Leituras complementares</h2>
+            </div>
+            <div class="chart-grid chart-grid-analytical">
+              <article class="chart-card">
+                <div class="chart-title">Classificação</div>
+                <div class="plot-shell scroll-y">
+                  <div id="plotClassificacao" class="plot"></div>
+                </div>
+              </article>
+              <article class="chart-card">
+                <div class="chart-title">Ministério</div>
+                <div class="chart-subtitle">Ministério responsável pelo empreendimento.</div>
+                <div class="plot-shell scroll-y">
+                  <div id="plotMinisterio" class="plot"></div>
+                </div>
+              </article>
+              <article class="chart-card">
+                <div class="chart-title">Ano de previsão de conclusão</div>
+                <div class="plot-shell">
+                  <div id="plotAno" class="plot"></div>
+                </div>
+              </article>
+            </div>
+          </section>
+
+        </div><!-- /panel-perfil -->
+
+        <!-- ══════════════════════════════════════════════════════════════════
+             ABA 3 — RELAÇÕES (sankey + scatter)
+        ═══════════════════════════════════════════════════════════════════ -->
+        <div id="panel-relacoes" class="tab-panel" hidden>
+
+          <!-- Sankey: Fonte → Ministério → Executor -->
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Fluxo de recursos</h2>
+                <div class="table-subhead">
+                  Fonte de financiamento → Ministério → Tipo de Executor. Largura proporcional ao valor. Clique num nó para filtrar.
+                </div>
+              </div>
+            </div>
+            <article class="chart-card">
+              <div class="plot-shell">
+                <div id="plotSankey" class="plot sankey-plot"></div>
+              </div>
+            </article>
+          </section>
+
+          <!-- Scatter: Valor × Execução por município -->
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>Municípios: valor total × execução física</h2>
+                <div class="table-subhead">
+                  Apenas municípios individuais. Tamanho = nº de empreendimentos. Clique para filtrar.
+                </div>
+              </div>
+            </div>
+            <article class="chart-card">
+              <div class="plot-shell">
+                <div id="plotScatter" class="plot scatter-plot"></div>
+              </div>
+            </article>
+          </section>
+
+        </div><!-- /panel-relacoes -->
+
+        <!-- Relatório PDF — sempre visível -->
+        <section class="panel report-panel">
+          <div class="panel-head report-head">
+            <div>
+              <h2>Relatório do recorte</h2>
+              <div class="table-subhead">
+                O PDF consolida tabelas-resumo geradas com os filtros ativos na página.
+              </div>
+            </div>
+            <button id="btnPdfSecondary" class="btn btn-secondary">Gerar PDF</button>
+          </div>
+          <div class="report-note">
+            O relatório contém tabelas para Inclusão no Novo PAC, Tipo de Executor, Estágio,
+            Fontes de financiamento, Ministério, Classificação, Eixo, Subeixo, Modalidade,
+            Empreendimento e Ano de previsão de conclusão.
+          </div>
+        </section>
+
+        <footer class="footer-note panel">
+          <p><strong>Fonte:</strong> Novo PAC (2023–2030), Casa Civil – Governo Federal – Brasil.</p>
+          <p><strong>Recorte:</strong> Rio Grande do Sul. <strong>Atualização da base:</strong> março de 2026.</p>
+          <p>Os valores monetários são apresentados em reais.
+             A execução física corresponde à média do recorte selecionado.</p>
+        </footer>
+
+      </section><!-- /content -->
+    </main>
+  </div><!-- /site-shell -->
+
+  <!-- Container oculto para geração do PDF -->
+  <div id="tables"></div>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>
