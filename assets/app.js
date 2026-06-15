@@ -92,12 +92,12 @@ function showTab(tabId) {
   const btn   = document.querySelector(".tab-btn[data-tab='" + tabId + "']");
   if (panel) panel.hidden = false;
   if (btn)   btn.classList.add("active");
-  // Resize Plotly charts in the newly visible tab
+  // Redimensiona os gráficos Plotly no painel recém-visível
   setTimeout(() => {
     document.querySelectorAll("#panel-" + tabId + " .plot").forEach(el => {
-      if (el._fullData) Plotly.Plots.resize(el);
+      try { Plotly.Plots.resize(el); } catch(e) { /* ainda não renderizado */ }
     });
-  }, 40);
+  }, 80);
 }
 
 // ══ DATA ══════════════════════════════════════════════════════════════════════
@@ -267,7 +267,14 @@ function renderTreemap(rows) {
 
   if (!eixoAgg.size) return renderEmptyPlot(el, "Sem dados para este recorte.");
 
-  const ids=[tid("root")], labels=["Novo PAC RS"], parents=[""], values=[0], cdata=[null];
+  // Valor total da raiz deve ser >= soma dos filhos (obrigatório com branchvalues:"total")
+  const totalValue = sum([...eixoAgg.values()].map(a => a.v));
+  const allExec    = [...eixoAgg.values()].flatMap(a => a.ep);
+  const ids   = [tid("root")];
+  const labels = ["Novo PAC RS"];
+  const parents = [""];
+  const values = [totalValue];
+  const cdata  = [{level:"root", valorFmt:fmtMoney(totalValue), execFmt:fmtPct(average(allExec))}];
 
   eixoAgg.forEach(({v,ep}, eixo) => {
     const id = tid("e" + SEP + eixo);
@@ -287,8 +294,8 @@ function renderTreemap(rows) {
     values.push(v); cdata.push({level:"modalidade", eixo, subeixo, modalidade, valorFmt:fmtMoney(v), execFmt:fmtPct(average(ep))});
   });
 
-  // Nível inicial e profundidade máxima baseados nos filtros ativos
-  let startLevel = tid("root"), maxdepth = 2;
+  // level="" = mostra a partir da raiz. Plotly não aceita o ID da raiz como level.
+  let startLevel = "", maxdepth = 2;
   if (APP.filters.subeixo && APP.filters.eixo) {
     startLevel = tid("s" + SEP + APP.filters.eixo + SEP + APP.filters.subeixo); maxdepth = 2;
   } else if (APP.filters.eixo) {
