@@ -618,6 +618,15 @@ button, select, input { font: inherit; }
 /* ═══════════════════════════════════════════════════════════════════════════
    PAINEL DE RELATÓRIO
 ══════════════════════════════════════════════════════════════════════════ */
+.chart-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+/* Gráfico de ano com altura generosa na largura total */
+.ano-plot { min-height: 420px; }
+
 .report-panel { margin-top: 4px; }
 .report-head  { align-items: center !important; }
 .report-note  {
