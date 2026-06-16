@@ -401,30 +401,41 @@ function renderPieChart({ key, rows, element, colors }) {
   const summary = summarizeBy(rows, key).sort((a,b) => a.valor_total_rs - b.valor_total_rs);
   if (!summary.length) return renderEmptyPlot(element, "Sem dados para este recorte.");
   const total = sum(summary.map(d => d.valor_total_rs));
+
+  // Em pie charts do Plotly, %{customdata.chave} NÃO é interpolado no hovertemplate.
+  // A única variável confiável além de %{label}/%{value}/%{percent} é %{text}.
+  // Solução: pré-formatar toda a informação de hover em JS e usar hovertemplate:"%{text}".
+  const hoverText = summary.map(d =>
+    "<b>" + escapeHtml(d.categoria_raw) + "</b><br>" +
+    "Valor: "           + fmtMoney(d.valor_total_rs) + "<br>" +
+    "Participação: "    + pctValue(d.valor_total_rs, total) + "<br>" +
+    "Execução média: "  + fmtPct(d.execucao_media) + "<br>" +
+    "Empreendimentos: " + d.qtd_empreendimentos.toLocaleString("pt-BR") + "<br>" +
+    "Municípios: "      + d.qtd_municipios.toLocaleString("pt-BR")
+  );
+
   const trace = {
-    type:"pie", labels:summary.map(d=>d.categoria_raw), values:summary.map(d=>d.valor_total_rs),
-    textinfo:"percent",      // só % dentro das fatias — rótulos completos ficam na legenda
-    textposition:"auto",     // Plotly coloca dentro se couber, fora se não couber
-    textfont:{size:11},
+    type:"pie",
+    labels: summary.map(d => d.categoria_raw),
+    values: summary.map(d => d.valor_total_rs),
+    text:   hoverText,       // referenciado no hovertemplate via %{text}
+    textinfo:    "percent",  // exibe só % nas fatias — não usa o array `text` acima
+    textposition:"auto",     // dentro se couber, fora se não
+    textfont:    {size:11},
     sort:false, hole:0.34,
-    marker:{colors, line:{color:"#fff",width:2}},
-    // customdata como OBJETO com chaves nomeadas — indexação [N] não funciona em pie charts Plotly
-    customdata:summary.map(d=>({
-      valor: fmtMoney(d.valor_total_rs),
-      exec:  fmtPct(d.execucao_media),
-      emp:   d.qtd_empreendimentos.toLocaleString("pt-BR"),
-      mun:   d.qtd_municipios.toLocaleString("pt-BR"),
-      pct:   pctValue(d.valor_total_rs,total)
-    })),
-    hovertemplate:"<b>%{label}</b><br>Valor: %{customdata.valor}<br>Participação: %{customdata.pct}<br>Execução média: %{customdata.exec}<br>Empreendimentos: %{customdata.emp}<br>Municípios: %{customdata.mun}<extra></extra>"
+    marker:{colors, line:{color:"#fff", width:2}},
+    hovertemplate: "%{text}<extra></extra>"
   };
+
   const layout = baseLayout({height:420, margin:{l:10,r:10,t:10,b:10}, showlegend:true,
     legend:{orientation:"v", x:1.02, xanchor:"left", y:0.5, font:{size:11}}});
+
   if (typeof element.removeAllListeners === "function") element.removeAllListeners("plotly_click");
   Plotly.react(element, [trace], layout, plotConfig()).then(() =>
     element.on("plotly_click", ev => {
-      const label=ev.points?.[0]?.label; if(!label) return;
-      APP.filters[key]=APP.filters[key]===label?null:label; renderAll();
+      const label = ev.points?.[0]?.label; if (!label) return;
+      APP.filters[key] = APP.filters[key] === label ? null : label;
+      renderAll();
     })
   );
 }
