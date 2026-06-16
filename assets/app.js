@@ -402,38 +402,45 @@ function renderPieChart({ key, rows, element, colors }) {
   if (!summary.length) return renderEmptyPlot(element, "Sem dados para este recorte.");
   const total = sum(summary.map(d => d.valor_total_rs));
 
-  // Em pie charts do Plotly, %{customdata.chave} NÃO é interpolado no hovertemplate.
-  // A única variável confiável além de %{label}/%{value}/%{percent} é %{text}.
-  // Solução: pré-formatar toda a informação de hover em JS e usar hovertemplate:"%{text}".
-  const hoverText = summary.map(d =>
-    "<b>" + escapeHtml(d.categoria_raw) + "</b><br>" +
-    "Valor: "           + fmtMoney(d.valor_total_rs) + "<br>" +
-    "Participação: "    + pctValue(d.valor_total_rs, total) + "<br>" +
-    "Execução média: "  + fmtPct(d.execucao_media) + "<br>" +
-    "Empreendimentos: " + d.qtd_empreendimentos.toLocaleString("pt-BR") + "<br>" +
+  // Plotly pie charts não expõem %{text} no hovertemplate quando textinfo não inclui "text",
+  // e %{customdata[N]} / %{customdata.chave} também não funcionam em pizzas.
+  // Solução definitiva: usar a propriedade `hovertext` (exclusiva para hover)
+  // com `hoverinfo: "text"` — HTML é suportado nessa combinação no Plotly 2.x.
+  const hoverText = summary.map(d => [
+    "<b>" + escapeHtml(d.categoria_raw) + "</b>",
+    "Valor: "           + fmtMoney(d.valor_total_rs),
+    "Participação: "    + pctValue(d.valor_total_rs, total),
+    "Execução média: "  + fmtPct(d.execucao_media),
+    "Empreendimentos: " + d.qtd_empreendimentos.toLocaleString("pt-BR"),
     "Municípios: "      + d.qtd_municipios.toLocaleString("pt-BR")
-  );
+  ].join("<br>"));
 
   const trace = {
-    type:"pie",
-    labels: summary.map(d => d.categoria_raw),
-    values: summary.map(d => d.valor_total_rs),
-    text:   hoverText,       // referenciado no hovertemplate via %{text}
-    textinfo:    "percent",  // exibe só % nas fatias — não usa o array `text` acima
-    textposition:"auto",     // dentro se couber, fora se não
-    textfont:    {size:11},
-    sort:false, hole:0.34,
-    marker:{colors, line:{color:"#fff", width:2}},
-    hovertemplate: "%{text}<extra></extra>"
+    type: "pie",
+    labels:      summary.map(d => d.categoria_raw),
+    values:      summary.map(d => d.valor_total_rs),
+    textinfo:    "percent",   // só % aparece visualmente nas fatias
+    textposition:"auto",
+    textfont:    { size: 11 },
+    sort: false,
+    hole: 0.34,
+    marker: { colors, line: { color: "#fff", width: 2 } },
+    hovertext: hoverText,     // array de strings HTML pré-formatadas
+    hoverinfo: "text"         // mostra apenas o hovertext no tooltip
   };
 
-  const layout = baseLayout({height:420, margin:{l:10,r:10,t:10,b:10}, showlegend:true,
-    legend:{orientation:"v", x:1.02, xanchor:"left", y:0.5, font:{size:11}}});
+  const layout = baseLayout({
+    height: 420,
+    margin: { l: 10, r: 10, t: 10, b: 10 },
+    showlegend: true,
+    legend: { orientation: "v", x: 1.02, xanchor: "left", y: 0.5, font: { size: 11 } }
+  });
 
   if (typeof element.removeAllListeners === "function") element.removeAllListeners("plotly_click");
   Plotly.react(element, [trace], layout, plotConfig()).then(() =>
     element.on("plotly_click", ev => {
-      const label = ev.points?.[0]?.label; if (!label) return;
+      const label = ev.points?.[0]?.label;
+      if (!label) return;
       APP.filters[key] = APP.filters[key] === label ? null : label;
       renderAll();
     })
